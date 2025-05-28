@@ -7,11 +7,6 @@ class UserCreate(BaseModel):
 class UserOut(BaseModel):
     id: int
     email: EmailStr
-    is_verified: bool
 
     class Config:
         orm_mode = True
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
