@@ -1,8 +1,11 @@
 from fastapi import FastAPI
-from .auth import routes as auth_routes
-from .ads_routes import router as ads_router  # если ты сохранишь как ads_routes.py
+from . import models
+from .database import engine
+from .routes import ads as ads_routes  # Импортируем роуты
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-app.include_router(auth_routes.router, prefix="/auth", tags=["auth"])
-app.include_router(ads_router, prefix="/ads", tags=["ads"])
+# Подключаем роуты объявлений
+app.include_router(ads_routes.router, prefix="/ads", tags=["ads"])
