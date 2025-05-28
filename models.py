@@ -1,21 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from ..database import SessionLocal
-from . import schemas, services
-from .. import models
+from sqlalchemy import Column, Integer, String, Float, Enum
+from .database import Base
 
-router = APIRouter()
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-@router.post("/register", response_model=schemas.UserOut)
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    return services.create_user(db, user.email, user.password)
+class Advertisement(Base):
+    __tablename__ = "advertisements"
+    id = Column(Integer, primary_key=True, index=True)
+    crypto = Column(String, index=True)  # BTC, USDT и т.д.
+    fiat = Column(String, index=True)    # USD, RUB и т.д.
+    payment_method = Column(String, index=True)  # Bank Transfer, QIWI и т.п.
+    price = Column(Float)
+    type = Column(String)  # 'buy' или 'sell'
+    available = Column(Float)  # Сколько доступно
