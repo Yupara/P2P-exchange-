@@ -1,12 +1,14 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
+class AdCreate(BaseModel):
+    crypto: str
+    fiat: str
+    payment_method: str
+    price: float
+    type: str
+    available: float
 
-class UserOut(BaseModel):
+class AdOut(AdCreate):
     id: int
-    email: EmailStr
-
     class Config:
         orm_mode = True
