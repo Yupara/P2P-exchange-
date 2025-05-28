@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import models
 from database import engine
-import routes  # просто routes без auth
+import routes  # routes.py должен быть в том же каталоге
 
 models.Base.metadata.create_all(bind=engine)
 
