@@ -1,4 +1,7 @@
 fastapi
-uvicorn
-python-multipart
+sqlalchemy
+alembic
+psycopg2-binary
 passlib[bcrypt]
+python-jose[cryptography]
+email-validator
