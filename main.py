@@ -1,27 +1,39 @@
-from fastapi import FastAPI, Form, HTTPException
-from passlib.context import CryptContext
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel
+from typing import List, Optional
 
 app = FastAPI()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+class Ad(BaseModel):
+    id: int
+    crypto: str
+    fiat: str
+    payment_method: str
+    price: float
+    type: str  # buy / sell
+    available: float
 
-# Простое хранилище пользователей (в памяти)
-users_db = {}
+ads_db = []
 
+@app.post("/create_ad")
+def create_ad(ad: Ad):
+    ads_db.append(ad)
+    return {"message": "Объявление создано", "ad": ad}
 
-@app.post("/register")
-def register(email: str = Form(...), password: str = Form(...)):
-    if email in users_db:
-        raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
-    hashed_password = pwd_context.hash(password)
-    users_db[email] = hashed_password
-    return {"message": "Регистрация успешна"}
-
-
-@app.post("/login")
-def login(email: str = Form(...), password: str = Form(...)):
-    if email not in users_db:
-        raise HTTPException(status_code=400, detail="Пользователь не найден")
-    if not pwd_context.verify(password, users_db[email]):
-        raise HTTPException(status_code=400, detail="Неверный пароль")
-    return {"message": "Вход успешен"}
+@app.get("/search_ads")
+def search_ads(
+    crypto: Optional[str] = Query(None),
+    fiat: Optional[str] = Query(None),
+    payment_method: Optional[str] = Query(None),
+    type: Optional[str] = Query(None)
+):
+    results = ads_db
+    if crypto:
+        results = [ad for ad in results if ad.crypto == crypto]
+    if fiat:
+        results = [ad for ad in results if ad.fiat == fiat]
+    if payment_method:
+        results = [ad for ad in results if ad.payment_method == payment_method]
+    if type:
+        results = [ad for ad in results if ad.type == type]
+    return {"results": results}
