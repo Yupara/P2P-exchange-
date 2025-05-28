@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from . import models
-from .database import engine
-from .routes import ads as ads_routes  # Импортируем роуты
+import models
+from database import engine
+from routes import ads as ads_routes  # ✅ Убираем точку (.)
 
 models.Base.metadata.create_all(bind=engine)
 
