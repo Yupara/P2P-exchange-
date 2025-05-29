@@ -41,3 +41,38 @@ def get_ads(
 @router.get("/my", response_model=list[schemas.AdOut])
 def get_my_ads(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Ad).filter(models.Ad.owner_id == current_user.id).all()
+from fastapi import HTTPException, status
+
+@router.get("/{ad_id}", response_model=schemas.AdOut)
+def get_ad(ad_id: int, db: Session = Depends(get_db)):
+    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    return ad
+
+@router.delete("/{ad_id}")
+def delete_ad(ad_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    if ad.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this ad")
+    
+    db.delete(ad)
+    db.commit()
+    return {"detail": "Ad deleted"}
+
+@router.put("/{ad_id}", response_model=schemas.AdOut)
+def update_ad(ad_id: int, updated_ad: schemas.AdCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    if ad.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this ad")
+
+    ad.title = updated_ad.title
+    ad.description = updated_ad.description
+    ad.price = updated_ad.price
+    db.commit()
+    db.refresh(ad)
+    return ad
