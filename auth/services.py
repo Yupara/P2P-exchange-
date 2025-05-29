@@ -1,13 +1,18 @@
-from sqlalchemy.orm import Session
+# auth/services.py
+
+import models              # импортируем нашу модель User из models.py
+import schemas             # импортируем pydantic-схемы из schemas.py
+from database import SessionLocal  # импортируем сессию для работы с БД
 from passlib.context import CryptContext
-import models
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def create_user(db: Session, email: str, password: str):
-    hashed_password = pwd_context.hash(password)
-    db_user = models.User(email=email, hashed_password=hashed_password)
-    db.add(db_user)
+def create_user(email: str, password: str):
+    db = SessionLocal()
+    hashed = pwd_context.hash(password)
+    user = models.User(email=email, hashed_password=hashed)
+    db.add(user)
     db.commit()
-    db.refresh(db_user)
-    return db_user
+    db.refresh(user)
+    db.close()
+    return user
