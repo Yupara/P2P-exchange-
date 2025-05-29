@@ -1,17 +1,32 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 
-# ===== Входящие данные при регистрации и логине =====
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
 
-# ===== Ответ клиенту (например, /me или /register) =====
 class UserOut(BaseModel):
     id: int
     email: EmailStr
 
     class Config:
-        from_attributes = True  # Если Pydantic v2
-        # orm_mode = True       # Если Pydantic v1
+        from_attributes = True
+
+
+class AdCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    price: float
+
+
+class AdOut(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    price: float
+    owner_id: int
+
+    class Config:
+        from_attributes = True
