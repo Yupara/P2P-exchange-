@@ -10,3 +10,10 @@ app = FastAPI()
 
 app.include_router(auth_router, prefix="/auth")
 app.include_router(ads_router, prefix="/ads")
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return {"message": "FastAPI работает!"}
