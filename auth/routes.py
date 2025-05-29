@@ -20,3 +20,10 @@ def login(form_data_email: str = Form(...), form_data_password: str = Form(...),
         raise HTTPException(status_code=401, detail="Неверные учётные данные")
     access_token = create_access_token({"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+from fastapi import Depends
+from auth.deps import get_current_user
+import models, schemas
+
+@router.get("/me", response_model=schemas.UserOut)
+def read_users_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
