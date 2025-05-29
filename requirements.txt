@@ -1,4 +1,8 @@
-Flask==2.3.2
-Flask-SQLAlchemy==3.0.3
-psycopg2-binary==2.9.9
-gunicorn==22.0.0
+fastapi
+uvicorn
+sqlalchemy
+alembic
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+email-validator
