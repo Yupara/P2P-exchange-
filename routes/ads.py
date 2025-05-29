@@ -36,3 +36,13 @@ def get_ads(
         query = query.filter(models.Ad.owner_id == owner_id)
 
     return query.all()
+from auth.deps import get_current_user  # Убедись, что импорт добавлен
+from models import User
+
+@router.get("/my", response_model=list[schemas.AdOut])
+def read_my_ads(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    my_ads = db.query(models.Ad).filter(models.Ad.owner_id == current_user.id).all()
+    return my_ads
