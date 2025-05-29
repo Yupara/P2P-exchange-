@@ -9,3 +9,6 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(ads_router, prefix="/ads", tags=["ads"])
+@app.get("/")
+def root():
+    return {"message": "Service is up"}
