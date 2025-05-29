@@ -1,26 +1,17 @@
 from pydantic import BaseModel
+from typing import Optional
 
-# Пользователь (только для ответа)
-class UserOut(BaseModel):
+class AdBase(BaseModel):
+    title: str
+    description: str
+    price: float
+
+class AdCreate(AdBase):
+    pass
+
+class AdOut(AdBase):
     id: int
-    email: str
-
-    class Config:
-        from_attributes = True
-
-# Объявление - создание
-class AdCreate(BaseModel):
-    currency: str
-    amount: float
-    ad_type: str  # buy / sell
-
-# Объявление - ответ
-class AdOut(BaseModel):
-    id: int
-    currency: str
-    amount: float
-    ad_type: str
     owner_id: int
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # Для Pydantic v2
