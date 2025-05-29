@@ -1,6 +1,15 @@
 from pydantic import BaseModel
 from typing import Optional
 
+# Модель для возвращаемого пользователя (при регистрации, /me и т.д.)
+class UserOut(BaseModel):
+    id: int
+    email: str
+
+    class Config:
+        from_attributes = True  # Для Pydantic v2
+
+# Остальное — объявления (если уже добавил ранее)
 class AdBase(BaseModel):
     title: str
     description: str
@@ -14,4 +23,4 @@ class AdOut(AdBase):
     owner_id: int
 
     class Config:
-        from_attributes = True  # Для Pydantic v2
+        from_attributes = True
