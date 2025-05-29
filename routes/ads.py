@@ -1,11 +1,15 @@
+# routes/ads.py
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+
+import models
+import schemas
 from database import get_db
-import models, schemas
 
 router = APIRouter()
 
-@router.post("/create", response_model=schemas.AdOut)
+@router.post("/", response_model=schemas.AdOut)
 def create_ad(ad: schemas.AdCreate, db: Session = Depends(get_db)):
     db_ad = models.Advertisement(**ad.dict())
     db.add(db_ad)
@@ -13,7 +17,7 @@ def create_ad(ad: schemas.AdCreate, db: Session = Depends(get_db)):
     db.refresh(db_ad)
     return db_ad
 
-@router.get("/search", response_model=list[schemas.AdOut])
+@router.get("/", response_model=list[schemas.AdOut])
 def search_ads(
     crypto: str = Query(None),
     fiat: str = Query(None),
