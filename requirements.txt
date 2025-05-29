@@ -3,6 +3,6 @@ uvicorn
 sqlalchemy
 alembic
 psycopg2-binary
-python-jose[cryptography]
 passlib[bcrypt]
+python-jose[cryptography]
 email-validator
