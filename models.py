@@ -1,9 +1,13 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Float
 from database import Base
 
-class User(Base):
-    __tablename__ = "users"
+class Advertisement(Base):
+    __tablename__ = "advertisements"
+
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-    is_verified = Column(Boolean, default=False)
+    crypto = Column(String, index=True)
+    fiat = Column(String, index=True)
+    payment_method = Column(String)
+    price = Column(Float)
+    type = Column(String)
+    available = Column(Float)
