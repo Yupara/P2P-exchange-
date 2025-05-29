@@ -14,7 +14,7 @@ class UserOut(BaseModel):
     email: EmailStr
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # ----------- Токен -----------
@@ -43,4 +43,4 @@ class AdOut(AdBase):
     owner_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
