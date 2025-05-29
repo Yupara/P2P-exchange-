@@ -7,18 +7,11 @@ class UserCreate(BaseModel):
     password: str
 
 
-# ===== Ответ клиенту (например, в /me или /register) =====
+# ===== Ответ клиенту (например, /me или /register) =====
 class UserOut(BaseModel):
     id: int
     email: EmailStr
 
     class Config:
-        from_attributes = True  # если используешь Pydantic v2
-        # orm_mode = True       # если Pydantic v1
-        class UserOut(BaseModel):
-    id: int
-    email: EmailStr
-    full_name: str  # ← если добавишь такое поле в модель
-
-    class Config:
-        from_attributes = True
+        from_attributes = True  # Если Pydantic v2
+        # orm_mode = True       # Если Pydantic v1
