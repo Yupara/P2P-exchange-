@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Enum
-from .database import Base
+from database import Base
 
 class Advertisement(Base):
     __tablename__ = "advertisements"
