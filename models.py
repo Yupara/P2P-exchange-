@@ -1,13 +1,12 @@
-from sqlalchemy import Column, Integer, String, Float
-from database import Base
+from sqlalchemy import Column, Integer, String
+from database import Base  # Убедись, что путь к Base правильный
 
-class Advertisement(Base):
-    __tablename__ = "advertisements"
+class User(Base):
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    crypto = Column(String, index=True)
-    fiat = Column(String, index=True)
-    payment_method = Column(String)
-    price = Column(Float)
-    type = Column(String)
-    available = Column(Float)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+
+    # дополнительные поля по желанию:
+    # is_active = Column(Boolean, default=True)
