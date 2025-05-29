@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-class AdBase(BaseModel):
+class AdCreate(BaseModel):
     crypto: str
     fiat: str
     payment_method: str
@@ -8,10 +8,7 @@ class AdBase(BaseModel):
     type: str
     available: float
 
-class AdCreate(AdBase):
-    pass
-
-class AdOut(AdBase):
+class AdOut(AdCreate):
     id: int
 
     class Config:
