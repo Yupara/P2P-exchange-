@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-class AdCreate(BaseModel):
+class AdBase(BaseModel):
     crypto: str
     fiat: str
     payment_method: str
@@ -8,8 +8,12 @@ class AdCreate(BaseModel):
     type: str
     available: float
 
-class AdOut(AdCreate):
+class AdCreate(AdBase):
+    pass
+
+class AdOut(AdBase):
     id: int
 
     class Config:
-    from_attributes = True
+        # Здесь отступ 4 пробела, и это единственная строка внутри Config
+        from_attributes = True
