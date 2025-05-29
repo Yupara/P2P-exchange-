@@ -10,6 +10,7 @@ from passlib.context import CryptContext
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# 🔐 Регистрация
 @router.post("/register", response_model=schemas.UserOut)
 def register(
     email: str = Form(...),
@@ -27,6 +28,7 @@ def register(
     db.refresh(new_user)
     return new_user
 
+# 🔐 Логин
 @router.post("/login")
 def login(
     email: str = Form(...),
@@ -36,10 +38,11 @@ def login(
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user or not pwd_context.verify(password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    
     token = create_access_token({"sub": user.email})
     return {"access_token": token, "token_type": "bearer"}
 
-# ✅ Вот эта часть отвечает за /me
+# 👤 Получение текущего пользователя
 @router.get("/me", response_model=schemas.UserOut)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
