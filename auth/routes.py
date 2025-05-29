@@ -1,22 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.orm import Session
 from database import get_db
-import models, schemas
-from auth.services import create_user  # ваша функция регистрации
 from auth.jwt_handler import create_access_token
+from auth.deps import get_current_user
+import models
+import schemas
 from passlib.context import CryptContext
 
 router = APIRouter()
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Эндпоинт регистрации
 @router.post("/register", response_model=schemas.UserOut)
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # …ваша логика регистрации…
-    return create_user(db, user.email, user.password)
+def register(
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    existing_user = db.query(models.User).filter(models.User.email == email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = pwd_context.hash(password)
+    new_user = models.User(email=email, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
 
-# Новый эндпоинт входа
 @router.post("/login")
 def login(
     email: str = Form(...),
@@ -29,8 +39,7 @@ def login(
     token = create_access_token({"sub": user.email})
     return {"access_token": token, "token_type": "bearer"}
 
-# Эндпоинт /me (личный кабинет) — если ещё не добавили
-from auth.deps import get_current_user
+# ✅ Вот эта часть отвечает за /me
 @router.get("/me", response_model=schemas.UserOut)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
