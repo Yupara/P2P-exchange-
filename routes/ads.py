@@ -121,3 +121,40 @@ def get_ads(db: Session = Depends(get_db)):
 def read_my_ads(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     ads = db.query(Ad).filter(Ad.owner_id == current_user.id).all()
     return ads
+from fastapi import Path
+
+@router.put("/{ad_id}", response_model=AdOut)
+def update_ad(
+    ad_id: int = Path(..., description="ID объявления"),
+    ad_data: AdCreate = Depends(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ad = db.query(Ad).filter(Ad.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Объявление не найдено")
+    if ad.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Нет доступа к редактированию этого объявления")
+    
+    ad.title = ad_data.title
+    ad.description = ad_data.description
+    ad.price = ad_data.price
+    db.commit()
+    db.refresh(ad)
+    return ad
+
+@router.delete("/{ad_id}")
+def delete_ad(
+    ad_id: int = Path(..., description="ID объявления"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ad = db.query(Ad).filter(Ad.id == ad_id).first()
+    if not ad:
+        raise HTTPException(status_code=404, detail="Объявление не найдено")
+    if ad.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Нет доступа к удалению этого объявления")
+    
+    db.delete(ad)
+    db.commit()
+    return {"detail": "Объявление удалено"}
