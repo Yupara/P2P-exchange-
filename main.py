@@ -1,17 +1,15 @@
 from fastapi import FastAPI
-from auth.routes import router as auth_router
 from routes.ads import router as ads_router
-from database import engine
+from auth.routes import router as auth_router
 import models
+from database import engine
 
+# Создаём таблицы в БД
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-app.include_router(auth_router, prefix="/auth")
-app.include_router(ads_router, prefix="/ads")
-from fastapi.responses import JSONResponse
-
-@app.get("/")
-def read_root():
-    return JSONResponse(content={"message": "FastAPI работает!"}, media_type="application/json; charset=utf-8")
+# Роуты авторизации
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+# Роуты объявлений
+app.include_router(ads_router, prefix="/ads", tags=["ads"])
