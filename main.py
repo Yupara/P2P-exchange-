@@ -9,6 +9,11 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+# Корневой маршрут
+@app.get("/")
+def root():
+    return {"message": "Welcome to P2P Exchange API"}
+
 # Роуты авторизации
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 # Роуты объявлений
