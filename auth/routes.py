@@ -46,6 +46,10 @@ def login(
 @router.get("/me", response_model=schemas.UserOut)
 def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
+from fastapi import APIRouter
+
+router = APIRouter()
+
 @router.get("/")
 def root():
     return {"message": "Welcome to P2P Exchange API"}
