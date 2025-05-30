@@ -93,3 +93,31 @@ def delete_ad(
     db.delete(ad)
     db.commit()
     return {"detail": "Ad deleted"}
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import get_db
+from auth.utils import get_current_user
+from models import Ad, User
+from schemas import AdCreate, AdOut
+
+router = APIRouter()
+
+# Создание объявления
+@router.post("/", response_model=AdOut)
+def create_ad(ad: AdCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    new_ad = Ad(**ad.dict(), owner_id=current_user.id)
+    db.add(new_ad)
+    db.commit()
+    db.refresh(new_ad)
+    return new_ad
+
+# Получение всех объявлений
+@router.get("/", response_model=list[AdOut])
+def get_ads(db: Session = Depends(get_db)):
+    return db.query(Ad).all()
+
+# ✅ Получение своих объявлений
+@router.get("/my", response_model=list[AdOut])
+def read_my_ads(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    ads = db.query(Ad).filter(Ad.owner_id == current_user.id).all()
+    return ads
