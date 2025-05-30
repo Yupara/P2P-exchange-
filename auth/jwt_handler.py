@@ -1,20 +1,34 @@
-# auth/jwt_handler.py
-from datetime import datetime, timedelta
+# auth/deps.py
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
+from sqlalchemy.orm import Session
+from database import get_db
+import models
 
-SECRET_KEY = "твой_длинный_секрет_здесь"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # токен на сутки
+from auth.jwt_handler import SECRET_KEY, ALGORITHM  # импортируем ваш секрет и алгоритм
 
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+# Здесь указываем полный путь до login-эндпоинта с учетом префикса /auth
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-def verify_token(token: str):
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload.get("sub")
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
     except JWTError:
-        return None
+        raise credentials_exception
+
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if user is None:
+        raise credentials_exception
+    return user
