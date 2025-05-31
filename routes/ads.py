@@ -1,109 +1,41 @@
-# routes/ads.py
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from auth.deps import get_db, get_current_user
+import models, schemas
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-from typing import List
+router = APIRouter(prefix="/ads", tags=["ads"])
 
-# Импортируем функцию верификации токена из main.py
-from main import verify_token  
-
-# Pydantic-схемы для объявлений
-class Ad(BaseModel):
-    id: int
-    title: str
-    description: str
-    price: float
-    owner_id: int
-
-class AdCreate(BaseModel):
-    title: str
-    description: str
-    price: float
-
-# «База» объявлений в памяти (словарь id → Ad)
-fake_ads_db: dict[int, Ad] = {}
-next_ad_id = 1
-
-# Роутер /ads, все эндпоинты требуют JWT (Depends(verify_token))
-router = APIRouter(
-    prefix="/ads",
-    tags=["ads"],
-    dependencies=[Depends(verify_token)]  # <- здесь мы указываем проверку токена
-)
-
-@router.get("/", response_model=List[Ad], summary="Get all ads")
-def get_ads():
-    """
-    GET /ads/ — возвращает список всех объявлений.
-    (JWT проверяется автоматически благодаря dependencies=[Depends(verify_token)].)
-    """
-    return list(fake_ads_db.values())
-
-@router.get("/my", response_model=List[Ad], summary="Get my ads")
-def get_my_ads(email: str = Depends(verify_token)):
-    """
-    GET /ads/my — возвращает объявления только текущего пользователя.
-    owner_id = hash(email) % 1000.
-    """
-    owner_id = hash(email) % 1000
-    return [ad for ad in fake_ads_db.values() if ad.owner_id == owner_id]
-
-@router.post("/", response_model=Ad, summary="Create ad")
-def create_ad(
-    ad_data: AdCreate,
-    email: str = Depends(verify_token)
-):
-    """
-    POST /ads/ — создаёт новое объявление.
-    owner_id = hash(email) % 1000.
-    """
-    global next_ad_id
-    owner_id = hash(email) % 1000
-    new_ad = Ad(
-        id=next_ad_id,
-        title=ad_data.title,
-        description=ad_data.description,
-        price=ad_data.price,
-        owner_id=owner_id
-    )
-    fake_ads_db[next_ad_id] = new_ad
-    next_ad_id += 1
-    return new_ad
-
-@router.put("/{ad_id}", response_model=Ad, summary="Update ad")
-def update_ad(
-    ad_id: int,
-    ad_data: AdCreate,
-    email: str = Depends(verify_token)
-):
-    """
-    PUT /ads/{ad_id} — обновляет объявление, если текущий пользователь
-    является его владельцем. Иначе 404 или 403.
-    """
-    ad = fake_ads_db.get(ad_id)
-    if not ad:
-        raise HTTPException(status_code=404, detail="Ad not found")
-    if ad.owner_id != (hash(email) % 1000):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    ad.title = ad_data.title
-    ad.description = ad_data.description
-    ad.price = ad_data.price
-    fake_ads_db[ad_id] = ad
+@router.post("/", response_model=schemas.AdOut)
+def create_ad(ad_data: schemas.AdCreate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    ad = models.Ad(**ad_data.dict(), owner_id=user.id)
+    db.add(ad)
+    db.commit()
+    db.refresh(ad)
     return ad
 
-@router.delete("/{ad_id}", summary="Delete ad")
-def delete_ad(
-    ad_id: int,
-    email: str = Depends(verify_token)
-):
-    """
-    DELETE /ads/{ad_id} — удаляет объявление, если текущий пользователь
-    является его владельцем. Иначе 404 или 403.
-    """
-    ad = fake_ads_db.get(ad_id)
-    if not ad:
-        raise HTTPException(status_code=404, detail="Ad not found")
-    if ad.owner_id != (hash(email) % 1000):
+@router.get("/", response_model=list[schemas.AdOut])
+def get_all_ads(db: Session = Depends(get_db)):
+    return db.query(models.Ad).all()
+
+@router.get("/my", response_model=list[schemas.AdOut])
+def get_my_ads(db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    return db.query(models.Ad).filter(models.Ad.owner_id == user.id).all()
+
+@router.put("/{ad_id}", response_model=schemas.AdOut)
+def update_ad(ad_id: int, ad_data: schemas.AdCreate, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    ad = db.query(models.Ad).get(ad_id)
+    if not ad or ad.owner_id != user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    del fake_ads_db[ad_id]
-    return {"message": "Ad deleted"}
+    for key, value in ad_data.dict().items():
+        setattr(ad, key, value)
+    db.commit()
+    return ad
+
+@router.delete("/{ad_id}")
+def delete_ad(ad_id: int, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    ad = db.query(models.Ad).get(ad_id)
+    if not ad or ad.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    db.delete(ad)
+    db.commit()
+    return {"detail": "Ad deleted"}
