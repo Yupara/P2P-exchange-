@@ -1,5 +1,10 @@
 from datetime import timedelta
 
-SECRET_KEY = "supersecretkey"        # Замените на что-то своё и сложное в реальном проекте
+# Секретный ключ для подписи JWT (возьмите что-то сложное в реальной жизни)
+SECRET_KEY = "supersecretkey123"
+
+# Алгоритм подписи JWT
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30     # Срок жизни токена в минутах
+
+# Срок жизни токена (в минутах)
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
