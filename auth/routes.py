@@ -1,48 +1,59 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from database import get_db
-from auth.jwt_handler import create_access_token
-from auth.deps import get_current_user
-import models
-import schemas
-from passlib.context import CryptContext
+from db import models, schemas, database
+from auth.auth import get_current_user
 
-router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+router = APIRouter(
+    prefix="/ads",
+    tags=["ads"]
+)
 
-# 🔐 Регистрация
-@router.post("/register", response_model=schemas.UserOut)
-def register(
-    email: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    existing_user = db.query(models.User).filter(models.User.email == email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    hashed_password = pwd_context.hash(password)
-    new_user = models.User(email=email, hashed_password=hashed_password)
-    db.add(new_user)
+# Получить все объявления
+@router.get("/")
+def get_ads(db: Session = Depends(database.get_db)):
+    return db.query(models.Ad).all()
+
+# Получить свои объявления
+@router.get("/my")
+def get_my_ads(user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    return db.query(models.Ad).filter(models.Ad.owner_id == user.id).all()
+
+# Создать объявление
+@router.post("/")
+def create_ad(ad: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    new_ad = models.Ad(**ad.dict(), owner_id=user.id)
+    db.add(new_ad)
     db.commit()
-    db.refresh(new_user)
-    return new_user
+    db.refresh(new_ad)
+    return new_ad
 
-# 🔐 Логин
-@router.post("/login")
-def login(
-    email: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user or not pwd_context.verify(password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    
-    token = create_access_token({"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
+# 🔧 Обновить объявление
+@router.put("/{ad_id}")
+def update_ad(ad_id: int, ad_data: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
 
-# 👤 Получение текущего пользователя
-@router.get("/me", response_model=schemas.UserOut)
-def read_users_me(current_user: models.User = Depends(get_current_user)):
-    return current_user
+    if not ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    if ad.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this ad")
+
+    ad.title = ad_data.title
+    ad.description = ad_data.description
+    ad.price = ad_data.price
+    db.commit()
+    db.refresh(ad)
+    return ad
+
+# ❌ Удалить объявление
+@router.delete("/{ad_id}")
+def delete_ad(ad_id: int, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
+
+    if not ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    if ad.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this ad")
+
+    db.delete(ad)
+    db.commit()
+    return {"message": "Ad deleted"}
