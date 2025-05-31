@@ -7,7 +7,7 @@ from auth.jwt_handler import decode_token
 from database import get_db
 from models import User
 
-# Обратите внимание на слэш в начале — он ОБЯЗАТЕЛЕН
+# ВАЖНО! Здесь должен быть слэш в начале
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def get_current_user(
