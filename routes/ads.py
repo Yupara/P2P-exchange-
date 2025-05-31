@@ -1,28 +1,33 @@
 from flask import Blueprint, request, jsonify
 from database import cnx
 
-ads = Blueprint('ads', __name__)
+auth = Blueprint('auth', __name__)
 
-# Маршрут для создания объявления
-@ads.route('/create', methods=['POST'])
-def create_ad():
-    title = request.json['title']
-    description = request.json['description']
-    price = request.json['price']
-    # Добавление объявления в базу данных
+# Маршрут для регистрации пользователей
+@auth.route('/register', methods=['POST'])
+def register():
+    username = request.json['username']
+    email = request.json['email']
+    password = request.json['password']
+    # Добавление пользователя в базу данных
     cursor = cnx.cursor()
-    cursor.execute("INSERT INTO ads (title, description, price) VALUES (%s, %s, %s)", (title, description, price))
+    cursor.execute("INSERT INTO users (username, email, password) VALUES (%s, %s, %s)", (username, email, password))
     cnx.commit()
-    return jsonify({'message': 'Объявление создано'})
+    return jsonify({'message': 'Пользователь создан'})
 
-# Маршрут для получения всех объявлений
-@ads.route('/all', methods=['GET'])
-def get_all_ads():
-    # Получение всех объявлений из базы данных
+# Маршрут для входа пользователей
+@auth.route('/login', methods=['POST'])
+def login():
+    username = request.json['username']
+    password = request.json['password']
+    # Проверка пользователя в базе данных
     cursor = cnx.cursor()
-    cursor.execute("SELECT * FROM ads")
-    ads = cursor.fetchall()
-    return jsonify({'ads': ads})
+    cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
+    user = cursor.fetchone()
+    if user:
+        return jsonify({'message': 'Пользователь авторизован'})
+    else:
+        return jsonify({'message': 'Неправильный логин или пароль'})
 
 if __name__ == '__main__':
-    ads.run(debug=True)
+    auth.run(debug=True)
