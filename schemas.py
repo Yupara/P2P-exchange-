@@ -24,3 +24,9 @@ class AdOut(AdBase):
 
     class Config:
         from_attributes = True
+from pydantic import BaseModel
+
+class AdCreate(BaseModel):
+    title: str
+    description: str
+    price: float
