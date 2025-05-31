@@ -1,40 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from database import get_db
-from auth.utils import get_current_user
-from models import Ad, User
-from schemas import AdCreate, AdOut
+from db import models, schemas, database
+from auth.auth import get_current_user
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/ads",
+    tags=["ads"]
+)
 
-# ➕ Создание объявления
-@router.post("/", response_model=AdOut)
-def create_ad(ad: AdCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    new_ad = Ad(**ad.dict(), owner_id=current_user.id)
+@router.get("/")
+def get_ads(db: Session = Depends(database.get_db)):
+    return db.query(models.Ad).all()
+
+@router.get("/my")
+def get_my_ads(user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    return db.query(models.Ad).filter(models.Ad.owner_id == user.id).all()
+
+@router.post("/")
+def create_ad(ad: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    new_ad = models.Ad(**ad.dict(), owner_id=user.id)
     db.add(new_ad)
     db.commit()
     db.refresh(new_ad)
     return new_ad
 
-# 📋 Получение всех объявлений
-@router.get("/", response_model=list[AdOut])
-def get_ads(db: Session = Depends(get_db)):
-    return db.query(Ad).all()
-
-# 📋 Получение только своих объявлений
-@router.get("/my", response_model=list[AdOut])
-def read_my_ads(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    ads = db.query(Ad).filter(Ad.owner_id == current_user.id).all()
-    return ads
-
-# ✏️ Обновление объявления
-@router.put("/{ad_id}", response_model=AdOut)
-def update_ad(ad_id: int, ad_data: AdCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    ad = db.query(Ad).filter(Ad.id == ad_id).first()
+@router.put("/{ad_id}")
+def update_ad(ad_id: int, ad_data: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
     if not ad:
-        raise HTTPException(status_code=404, detail="Объявление не найдено")
-    if ad.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Вы не являетесь владельцем")
+        raise HTTPException(status_code=404, detail="Ad not found")
+    if ad.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
     ad.title = ad_data.title
     ad.description = ad_data.description
     ad.price = ad_data.price
@@ -42,14 +38,13 @@ def update_ad(ad_id: int, ad_data: AdCreate, db: Session = Depends(get_db), curr
     db.refresh(ad)
     return ad
 
-# ❌ Удаление объявления
 @router.delete("/{ad_id}")
-def delete_ad(ad_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    ad = db.query(Ad).filter(Ad.id == ad_id).first()
+def delete_ad(ad_id: int, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
     if not ad:
-        raise HTTPException(status_code=404, detail="Объявление не найдено")
-    if ad.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Вы не являетесь владельцем")
+        raise HTTPException(status_code=404, detail="Ad not found")
+    if ad.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
     db.delete(ad)
     db.commit()
-    return {"detail": "Объявление удалено"}
+    return {"message": "Ad deleted"}
