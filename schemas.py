@@ -1,15 +1,23 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-# Модель для возвращаемого пользователя (при регистрации, /me и т.д.)
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
 class UserOut(BaseModel):
     id: int
+    email: EmailStr
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
     email: str
 
-    class Config:
-        from_attributes = True  # Для Pydantic v2
-
-# Остальное — объявления (если уже добавил ранее)
 class AdBase(BaseModel):
     title: str
     description: str
@@ -21,6 +29,5 @@ class AdCreate(AdBase):
 class AdOut(AdBase):
     id: int
     owner_id: int
-
     class Config:
         from_attributes = True
