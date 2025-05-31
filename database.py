@@ -1,54 +1,17 @@
-import mysql.connector
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# Настройки базы данных
-db_host = 'localhost'
-db_user = 'root'
-db_password = 'password'
-db_name = 'p2p_database'
+DATABASE_URL = "sqlite:///./test.db"  # или PostgreSQL URI
 
-# Создание соединения с базой данных
-cnx = mysql.connector.connect(
-    user=db_user,
-    password=db_password,
-    host=db_host,
-    database=db_name
-)
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Создание таблицы пользователей
-cursor = cnx.cursor()
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT,
-        username VARCHAR(255),
-        email VARCHAR(255),
-        password VARCHAR(255),
-        PRIMARY KEY (id)
-    );
-""")
+Base = declarative_base()
 
-# Создание таблицы объявлений
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS ads (
-        id INT AUTO_INCREMENT,
-        user_id INT,
-        title VARCHAR(255),
-        description TEXT,
-        price DECIMAL(10, 2),
-        PRIMARY KEY (id),
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    );
-""")
-
-# Создание таблицы операций
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS transactions (
-        id INT AUTO_INCREMENT,
-        user_id INT,
-        ad_id INT,
-        amount DECIMAL(10, 2),
-        status VARCHAR(255),
-        PRIMARY KEY (id),
-        FOREIGN KEY (user_id) REFERENCES users (id),
-        FOREIGN KEY (ad_id) REFERENCES ads (id)
-    );
-""")
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
