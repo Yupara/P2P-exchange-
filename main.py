@@ -5,27 +5,25 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 
-# ---------------------------------------------------
-# 1. Настройки JWT
-# ---------------------------------------------------
-SECRET_KEY = "supersecretkey123"   # Замените на вашу собственную длинную уникальную строку!
+# ---------------------------------------
+# 1) Настройки для JWT
+# ---------------------------------------
+SECRET_KEY = "supersecretkey123"    # Замените на свою длинную секретную строку!
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60    # Токен будет действовать 60 минут
+ACCESS_TOKEN_EXPIRE_MINUTES = 60     # Время жизни токена (в минутах)
 
-# Схема безопасности HTTP Bearer (для Swagger UI)
+# Схема безопасности HTTP Bearer (для Swagger)
 bearer_scheme = HTTPBearer()
 
-# Контекст для bcrypt (для хеширования/проверки пароля)
+# Контекст для bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# «Фейковая» база пользователей (email → bcrypt-хеш пароля)
-# В реальном приложении вы бы брали из БД, здесь просто демонстрация
+# «Фейковая» база пользователей: email → bcrypt-хеш(пароля)
+# Пароль для alice@example.com = "secret123"
 fake_users_db: dict[str, str] = {
-    # Пароль для alice@example.com = "secret123"
-    # (хешировал заранее: bcrypt.hash("secret123"))
     "alice@example.com": "$2b$12$7QJH5WgNVv6JjaUbv1CIsewoif4fglRU/5iN9BnzEJI7frUeFSVM."
 }
-# Эмулируем, что у каждого email есть числовой ID (email → id)
+# email → id (для эмуляции таблицы пользователей)
 fake_user_id: dict[str, int] = {
     "alice@example.com": 1
 }
@@ -40,26 +38,28 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict) -> str:
     """
-    Генерирует JWT, берёт поля из data (ожидается data["sub"] = email),
-    добавляет в payload время истечения (exp) и подписывает.
+    Генерирует JWT, добавляя в payload поля из data + время истечения (exp).
+    Ожидаем, что data содержит key "sub" со значением email.
     """
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return token
 
 
 def verify_token(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
 ) -> str:
     """
-    Зависимость для проверки Bearer-токена:
-    • FastAPI автоматически достаёт заголовок Authorization: Bearer <JWT>,
-      “отрезает” префикс и отдаёт остальную строку в credentials.credentials.
-    • Декодируем JWT, проверяем подпись и поле "sub" (email).
-    • Если всё ок, возвращаем email; иначе кидаем HTTPException(401).
-    Swagger UI увидит, что этот endpoint или роутер зависит от HTTPBearer,
-    и сам покажет кнопку “Authorize” (🔓) в /docs.
+    Зависимость для проверки Bearer-токена.
+    • FastAPI достаёт заголовок Authorization: Bearer <JWT>,
+      «отрезает» префикс и передаёт сам токен в credentials.credentials.
+    • Мы декодируем токен и проверяем, что в payload есть "sub" = email.
+    • Если что-то неверно (просрочен, invalid signature или нет sub) →
+      кидаем HTTPException(status_code=401). 
+    • Иначе возвращаем email, чтобы дальше использовать его в routes.
+    Swagger UI увидит эту зависимость и отрисует кнопку “Authorize”.
     """
     token = credentials.credentials
     try:
@@ -75,12 +75,12 @@ def verify_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials"
         )
-    return email  # Теперь все роуты с Depends(verify_token) получают текущий email
+    return email  # При Depends(verify_token) мы получаем email текущего пользователя
 
 
-# ---------------------------------------------------
-# 2. Pydantic-схемы для логина и возврата токена
-# ---------------------------------------------------
+# ---------------------------------------
+# 2) Pydantic-схемы для запросов и ответов
+# ---------------------------------------
 class UserLogin(BaseModel):
     email: str
     password: str
@@ -90,9 +90,9 @@ class TokenResponse(BaseModel):
     token_type: str
 
 
-# ---------------------------------------------------
-# 3. Запускаем FastAPI-приложение
-# ---------------------------------------------------
+# ---------------------------------------
+# 3) Основное приложение FastAPI
+# ---------------------------------------
 app = FastAPI()
 
 
@@ -100,9 +100,17 @@ app = FastAPI()
 def login(user_data: UserLogin):
     """
     POST /auth/login
-    Body (JSON): { "email": "...", "password": "..." }
+    Body (JSON):
+      {
+        "email": "alice@example.com",
+        "password": "secret123"
+      }
     Если email есть в fake_users_db и пароль совпадает (проверка bcrypt),
-    возвращает {"access_token": <jwt>, "token_type": "bearer"}.
+    возвращаем:
+      {
+        "access_token": "<jwt>",
+        "token_type": "bearer"
+      }
     Иначе — HTTP 401.
     """
     hashed_pw = fake_users_db.get(user_data.email)
@@ -119,15 +127,19 @@ def login(user_data: UserLogin):
 def read_users_me(email: str = Depends(verify_token)):
     """
     GET /auth/me
-    Заголовок: Authorization: Bearer <jwt>
-    Возвращает { "email": email, "id": fake_user_id[email] }.
-    Если заголовок отсутствует или токен некорректен, вернёт 401 Not authenticated.
+    Требует заголовок: Authorization: Bearer <jwt>.
+    Если токен валиден, возвращает:
+      {
+        "email": email,
+        "id": fake_user_id[email]
+      }
+    Иначе — 401.
     """
     return {"email": email, "id": fake_user_id.get(email)}
 
 
-# ---------------------------------------------------
-# 4. Подключаем маршруты из файла ads.py
-# ---------------------------------------------------
-import ads  # Ключевой момент: файл ads.py **должен лежать рядом** с этим main.py
+# ---------------------------------------
+# 4) Подключаем маршруты из файла ads.py
+# ---------------------------------------
+import ads   # Файл ads.py должен лежать рядом с main.py
 app.include_router(ads.router)
