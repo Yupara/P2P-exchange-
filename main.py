@@ -105,3 +105,17 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 @app.get("/users/me", response_model=User)
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
+
+from fastapi import FastAPI
+from auth.routes import router as auth_router
+from ads.routes import router as ads_router
+from database import Base, engine
+
+# Создание таблиц
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI()
+
+# Подключаем маршруты
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(ads_router, prefix="/ads", tags=["ads"])
