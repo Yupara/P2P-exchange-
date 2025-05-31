@@ -1,50 +1,86 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from db import models, schemas, database
-from auth.auth import get_current_user
+from fastapi import FastAPI, APIRouter, Depends
+from typing import List
+from pydantic import BaseModel
 
-router = APIRouter(
+app = FastAPI()
+
+# 1) Определяем схемы (Pydantic-модели)
+class Ad(BaseModel):
+    id: int
+    title: str
+    description: str
+    price: float
+    owner_id: int
+
+class AdCreate(BaseModel):
+    title: str
+    description: str
+    price: float
+
+# 2) Эмуляция “базы” в памяти
+fake_ads_db: dict[int, Ad] = {}
+next_ad_id = 1
+
+# 3) Создаём роутер и сразу в нём указываем: 
+#    любой маршрут в этом роутере требует verify_token → Bearer 
+ads_router = APIRouter(
     prefix="/ads",
-    tags=["ads"]
+    tags=["ads"],
+    dependencies=[Depends(verify_token)]  # вот здесь
 )
 
-@router.get("/")
-def get_ads(db: Session = Depends(database.get_db)):
-    return db.query(models.Ad).all()
+@ads_router.get("/", response_model=List[Ad], summary="Get all ads")
+def get_ads():
+    return list(fake_ads_db.values())
 
-@router.get("/my")
-def get_my_ads(user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    return db.query(models.Ad).filter(models.Ad.owner_id == user.id).all()
-
-@router.post("/")
-def create_ad(ad: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    new_ad = models.Ad(**ad.dict(), owner_id=user.id)
-    db.add(new_ad)
-    db.commit()
-    db.refresh(new_ad)
+@ads_router.post("/", response_model=Ad, summary="Create ad")
+def create_ad(
+    ad_data: AdCreate,
+    email: str = Depends(verify_token)  # можно повторно вызывать, но router.dependencies уже проверил токен
+):
+    global next_ad_id
+    # в JWT в поле "sub" мы храним email пользователя
+    # для примера owner_id = хеш(email) % 1000  (либо возьмите ID из вашей БД)
+    owner_id = hash(email) % 1000
+    new_ad = Ad(id=next_ad_id, title=ad_data.title, description=ad_data.description, price=ad_data.price, owner_id=owner_id)
+    fake_ads_db[next_ad_id] = new_ad
+    next_ad_id += 1
     return new_ad
 
-@router.put("/{ad_id}")
-def update_ad(ad_id: int, ad_data: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
+@ads_router.put("/{ad_id}", response_model=Ad, summary="Update ad")
+def update_ad(
+    ad_id: int,
+    ad_data: AdCreate,
+    email: str = Depends(verify_token)
+):
+    ad = fake_ads_db.get(ad_id)
     if not ad:
         raise HTTPException(status_code=404, detail="Ad not found")
-    if ad.owner_id != user.id:
+    if ad.owner_id != (hash(email) % 1000):
         raise HTTPException(status_code=403, detail="Not authorized")
     ad.title = ad_data.title
     ad.description = ad_data.description
     ad.price = ad_data.price
-    db.commit()
-    db.refresh(ad)
+    fake_ads_db[ad_id] = ad
     return ad
 
-@router.delete("/{ad_id}")
-def delete_ad(ad_id: int, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
+@ads_router.delete("/{ad_id}", summary="Delete ad")
+def delete_ad(
+    ad_id: int,
+    email: str = Depends(verify_token)
+):
+    ad = fake_ads_db.get(ad_id)
     if not ad:
         raise HTTPException(status_code=404, detail="Ad not found")
-    if ad.owner_id != user.id:
+    if ad.owner_id != (hash(email) % 1000):
         raise HTTPException(status_code=403, detail="Not authorized")
-    db.delete(ad)
-    db.commit()
+    del fake_ads_db[ad_id]
     return {"message": "Ad deleted"}
+
+# Регистрируем роутер
+app.include_router(ads_router)
+
+# Простой публичный маршрут, чтобы проверить, что сервер жив
+@app.get("/", summary="Root endpoint")
+def root():
+    return {"message": "Welcome to P2P Exchange API"}
