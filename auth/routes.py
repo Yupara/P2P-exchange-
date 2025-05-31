@@ -1,50 +1,60 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+# auth/routes.py
+
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.orm import Session
-from db import models, schemas, database
-from auth.auth import get_current_user
+from database import get_db        # Импортируем из корня
+from auth.utils import get_current_user  # Если в utils.py обёртка для декодирования JWT
+from auth.jwt_handler import create_access_token  # Чтобы генерировать токены
+import models
+import schemas
+from passlib.context import CryptContext
 
-router = APIRouter(
-    prefix="/ads",
-    tags=["ads"]
-)
+router = APIRouter(prefix="/auth", tags=["auth"])
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@router.get("/")
-def get_ads(db: Session = Depends(database.get_db)):
-    return db.query(models.Ad).all()
-
-@router.get("/my")
-def get_my_ads(user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    return db.query(models.Ad).filter(models.Ad.owner_id == user.id).all()
-
-@router.post("/")
-def create_ad(ad: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    new_ad = models.Ad(**ad.dict(), owner_id=user.id)
-    db.add(new_ad)
+# ------------------------------------------
+# 1) Регистрация нового пользователя (примерно)
+# ------------------------------------------
+@router.post("/register", response_model=schemas.UserOut)
+def register(
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    # Проверяем, есть ли пользователь с таким email
+    existing = db.query(models.User).filter(models.User.email == email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed_password = pwd_context.hash(password)
+    new_user = models.User(email=email, hashed_password=hashed_password)
+    db.add(new_user)
     db.commit()
-    db.refresh(new_ad)
-    return new_ad
+    db.refresh(new_user)
+    return new_user
 
-@router.put("/{ad_id}")
-def update_ad(ad_id: int, ad_data: schemas.AdCreate, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
-    if not ad:
-        raise HTTPException(status_code=404, detail="Ad not found")
-    if ad.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    ad.title = ad_data.title
-    ad.description = ad_data.description
-    ad.price = ad_data.price
-    db.commit()
-    db.refresh(ad)
-    return ad
+# ------------------------------------------
+# 2) Логин: выдаём JWT
+# ------------------------------------------
+@router.post("/login", response_model=schemas.TokenResponse)
+def login(
+    email: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user or not pwd_context.verify(password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+    token = create_access_token({"sub": user.email})
+    return {"access_token": token, "token_type": "bearer"}
 
-@router.delete("/{ad_id}")
-def delete_ad(ad_id: int, user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
-    ad = db.query(models.Ad).filter(models.Ad.id == ad_id).first()
-    if not ad:
-        raise HTTPException(status_code=404, detail="Ad not found")
-    if ad.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    db.delete(ad)
-    db.commit()
-    return {"message": "Ad deleted"}
+# ------------------------------------------
+# 3) Эндпоинт “/me”: вернёт текущего пользователя
+# ------------------------------------------
+@router.get("/me", response_model=schemas.UserOut)
+def read_users_me(current_user: models.User = Depends(get_current_user)):
+    """
+    GET /auth/me
+    Требует Bearer-токен в заголовке. Если токен валидный, get_current_user 
+    достанет пользователя из БД и вернёт его.
+    """
+    return current_user
