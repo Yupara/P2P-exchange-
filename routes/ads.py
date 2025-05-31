@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
 from pydantic import BaseModel
+from typing import List
 
-# Импортируем verify_token из main.py
+# Импортируем функцию верификации токена из main.py
 from main import verify_token
 
-# ――――――――― Pydantic-модели для объявлений ―――――――――
+# ---------------------------------------------------
+# 1. Pydantic-модели для объявлений
+# ---------------------------------------------------
 class Ad(BaseModel):
     id: int
     title: str
@@ -18,31 +20,37 @@ class AdCreate(BaseModel):
     description: str
     price: float
 
-# ――――――――― Эмуляция «базы» объявлений в памяти ―――――――――
+# ---------------------------------------------------
+# 2. “База” объявлений в памяти (dictionary: id → Ad)
+# ---------------------------------------------------
 fake_ads_db: dict[int, Ad] = {}
 next_ad_id = 1
 
-# ――――――――― Роутер для /ads ―――――――――
+# ---------------------------------------------------
+# 3. Создаём роутер /ads и сразу требуем verify_token
+#    → Swagger UI отрисует кнопку “Authorize”
+# ---------------------------------------------------
 router = APIRouter(
     prefix="/ads",
     tags=["ads"],
-    # Любой маршрут этого роутера требует verify_token, поэтому Swagger покажет “Authorize”
     dependencies=[Depends(verify_token)]
 )
 
 @router.get("/", response_model=List[Ad], summary="Get all ads")
 def get_ads():
     """
-    GET /ads/ - вернуть список ВСЕХ объявлений (если вам нужно сделать публичным,
-    просто уберите Depends(verify_token) из dependencies=[])
+    GET /ads/
+    Вернёт список ВСЕХ объявлений.
+    Поскольку в APIRouter указано dependencies=[Depends(verify_token)],
+    для этого запроса нужен корректный Bearer-токен.
     """
     return list(fake_ads_db.values())
 
 @router.get("/my", response_model=List[Ad], summary="Get my ads")
 def get_my_ads(email: str = Depends(verify_token)):
     """
-    GET /ads/my - вернуть список ТОЛЬКО тех объявлений, 
-    которые были созданы текущим пользователем (owner_id = hash(email) % 1000).
+    GET /ads/my
+    Вернёт ТОЛЬКО те объявления, owner_id которых совпадает с hash(email)%1000.
     """
     owner_id = hash(email) % 1000
     return [ad for ad in fake_ads_db.values() if ad.owner_id == owner_id]
@@ -53,8 +61,10 @@ def create_ad(
     email: str = Depends(verify_token)
 ):
     """
-    POST /ads/ - создать новое объявление. 
-    В owner_id кладём hash(email)%1000 для эмуляции “идентификатора пользователя”.
+    POST /ads/
+    Body (JSON): { "title": "...", "description": "...", "price": ... }
+    Создаёт новое объявление. owner_id = hash(email)%1000.
+    Возвращает созданное объявление.
     """
     global next_ad_id
     owner_id = hash(email) % 1000
@@ -76,8 +86,9 @@ def update_ad(
     email: str = Depends(verify_token)
 ):
     """
-    PUT /ads/{ad_id} - обновить объявление с указанным ad_id,
-    только если текущий пользователь является его владельцем.
+    PUT /ads/{ad_id}
+    Обновляет объявление ad_id, если его owner_id == hash(email)%1000.
+    Body (JSON): { "title": "...", "description": "...", "price": ... }
     """
     ad = fake_ads_db.get(ad_id)
     if not ad:
@@ -96,8 +107,8 @@ def delete_ad(
     email: str = Depends(verify_token)
 ):
     """
-    DELETE /ads/{ad_id} - удалить объявление с указанным ad_id,
-    только если текущий пользователь является его владельцем.
+    DELETE /ads/{ad_id}
+    Удаляет объявление ad_id, если его owner_id == hash(email)%1000.
     """
     ad = fake_ads_db.get(ad_id)
     if not ad:
