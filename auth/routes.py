@@ -1,32 +1,35 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from passlib.hash import bcrypt
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import timedelta
 from auth.jwt_handler import create_access_token
 from auth.deps import get_db, get_current_user
-import models, schemas
+from schemas import UserCreate, UserOut, Token
+from models import User
+from config import ACCESS_TOKEN_EXPIRE_MINUTES
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/register", response_model=schemas.UserOut)
-def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == user_data.email).first()
-    if user:
+@router.post("/register", response_model=UserOut)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-    hashed = bcrypt.hash(user_data.password)
-    new_user = models.User(email=user_data.email, hashed_password=hashed)
-    db.add(new_user)
+    hashed_pw = bcrypt.hash(user.password)
+    db_user = User(email=user.email, hashed_password=hashed_pw)
+    db.add(db_user)
     db.commit()
-    db.refresh(new_user)
-    return new_user
+    db.refresh(db_user)
+    return db_user
 
-@router.post("/login", response_model=schemas.Token)
-def login(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == user_data.email).first()
-    if not user or not bcrypt.verify(user_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-    token = create_access_token({"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
+@router.post("/login", response_model=Token)
+def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == form.username).first()
+    if not user or not bcrypt.verify(form.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    access_token = create_access_token(data={"sub": user.email}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=schemas.UserOut)
-def me(current_user: models.User = Depends(get_current_user)):
+@router.get("/me", response_model=UserOut)
+def get_me(current_user: User = Depends(get_current_user)):
     return current_user
