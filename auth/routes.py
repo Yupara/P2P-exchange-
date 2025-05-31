@@ -1,55 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from auth.jwt_handler import create_access_token
+from auth.schemas import UserCreate, UserOut, Token
+from auth.services import create_user, authenticate_user
+from auth.jwt_handler import create_token
+from auth.deps import get_db, get_current_user
 from database import get_db
-from models import User
-from schemas import UserCreate, Token
-from passlib.hash import bcrypt
 
 router = APIRouter()
 
-@router.post("/register", response_model=Token)
+@router.post("/register", response_model=UserOut)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.username == user_data.username).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Username already registered")
-    user = User(username=user_data.username, hashed_password=bcrypt.hash(user_data.password))
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    token = create_access_token({"sub": str(user.id)})
-    return {"access_token": token, "token_type": "bearer"}
+    return create_user(db, user_data)
 
 @router.post("/login", response_model=Token)
 def login(user_data: UserCreate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == user_data.username).first()
-    if not user or not bcrypt.verify(user_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": str(user.id)})
-    return {"access_token": token, "token_type": "bearer"}
-
-from fastapi import APIRouter, Depends
-from auth.deps import get_current_user
-from models import User
-
-router = APIRouter()
-
-# Уже есть login, register — добавим /me:
-
-@router.get("/me", response_model=dict)
-def read_users_me(current_user: User = Depends(get_current_user)):
-    return {"id": current_user.id, "username": current_user.username}
-
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from auth.schemas import UserOut
-from auth.deps import get_db, get_current_user
-from models import User
-
-router = APIRouter()
-
-# другие маршруты login, register...
+    user = authenticate_user(db, user_data.username, user_data.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    return {"access_token": create_token(user.id), "token_type": "bearer"}
 
 @router.get("/me", response_model=UserOut)
-def get_me(current_user: User = Depends(get_current_user)):
-    return current_user
+def get_me(user = Depends(get_current_user)):
+    return user
