@@ -1,10 +1,11 @@
-from fastapi import FastAPI, APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from pydantic import BaseModel
 
-app = FastAPI()
+# Импортируем verify_token из main.py
+from main import verify_token
 
-# 1) Определяем схемы (Pydantic-модели)
+# ――――――――― Pydantic-модели для объявлений ―――――――――
 class Ad(BaseModel):
     id: int
     title: str
@@ -17,42 +18,67 @@ class AdCreate(BaseModel):
     description: str
     price: float
 
-# 2) Эмуляция “базы” в памяти
+# ――――――――― Эмуляция «базы» объявлений в памяти ―――――――――
 fake_ads_db: dict[int, Ad] = {}
 next_ad_id = 1
 
-# 3) Создаём роутер и сразу в нём указываем: 
-#    любой маршрут в этом роутере требует verify_token → Bearer 
-ads_router = APIRouter(
+# ――――――――― Роутер для /ads ―――――――――
+router = APIRouter(
     prefix="/ads",
     tags=["ads"],
-    dependencies=[Depends(verify_token)]  # вот здесь
+    # Любой маршрут этого роутера требует verify_token, поэтому Swagger покажет “Authorize”
+    dependencies=[Depends(verify_token)]
 )
 
-@ads_router.get("/", response_model=List[Ad], summary="Get all ads")
+@router.get("/", response_model=List[Ad], summary="Get all ads")
 def get_ads():
+    """
+    GET /ads/ - вернуть список ВСЕХ объявлений (если вам нужно сделать публичным,
+    просто уберите Depends(verify_token) из dependencies=[])
+    """
     return list(fake_ads_db.values())
 
-@ads_router.post("/", response_model=Ad, summary="Create ad")
+@router.get("/my", response_model=List[Ad], summary="Get my ads")
+def get_my_ads(email: str = Depends(verify_token)):
+    """
+    GET /ads/my - вернуть список ТОЛЬКО тех объявлений, 
+    которые были созданы текущим пользователем (owner_id = hash(email) % 1000).
+    """
+    owner_id = hash(email) % 1000
+    return [ad for ad in fake_ads_db.values() if ad.owner_id == owner_id]
+
+@router.post("/", response_model=Ad, summary="Create ad")
 def create_ad(
     ad_data: AdCreate,
-    email: str = Depends(verify_token)  # можно повторно вызывать, но router.dependencies уже проверил токен
+    email: str = Depends(verify_token)
 ):
+    """
+    POST /ads/ - создать новое объявление. 
+    В owner_id кладём hash(email)%1000 для эмуляции “идентификатора пользователя”.
+    """
     global next_ad_id
-    # в JWT в поле "sub" мы храним email пользователя
-    # для примера owner_id = хеш(email) % 1000  (либо возьмите ID из вашей БД)
     owner_id = hash(email) % 1000
-    new_ad = Ad(id=next_ad_id, title=ad_data.title, description=ad_data.description, price=ad_data.price, owner_id=owner_id)
+    new_ad = Ad(
+        id=next_ad_id,
+        title=ad_data.title,
+        description=ad_data.description,
+        price=ad_data.price,
+        owner_id=owner_id
+    )
     fake_ads_db[next_ad_id] = new_ad
     next_ad_id += 1
     return new_ad
 
-@ads_router.put("/{ad_id}", response_model=Ad, summary="Update ad")
+@router.put("/{ad_id}", response_model=Ad, summary="Update ad")
 def update_ad(
     ad_id: int,
     ad_data: AdCreate,
     email: str = Depends(verify_token)
 ):
+    """
+    PUT /ads/{ad_id} - обновить объявление с указанным ad_id,
+    только если текущий пользователь является его владельцем.
+    """
     ad = fake_ads_db.get(ad_id)
     if not ad:
         raise HTTPException(status_code=404, detail="Ad not found")
@@ -64,11 +90,15 @@ def update_ad(
     fake_ads_db[ad_id] = ad
     return ad
 
-@ads_router.delete("/{ad_id}", summary="Delete ad")
+@router.delete("/{ad_id}", summary="Delete ad")
 def delete_ad(
     ad_id: int,
     email: str = Depends(verify_token)
 ):
+    """
+    DELETE /ads/{ad_id} - удалить объявление с указанным ad_id,
+    только если текущий пользователь является его владельцем.
+    """
     ad = fake_ads_db.get(ad_id)
     if not ad:
         raise HTTPException(status_code=404, detail="Ad not found")
@@ -76,11 +106,3 @@ def delete_ad(
         raise HTTPException(status_code=403, detail="Not authorized")
     del fake_ads_db[ad_id]
     return {"message": "Ad deleted"}
-
-# Регистрируем роутер
-app.include_router(ads_router)
-
-# Простой публичный маршрут, чтобы проверить, что сервер жив
-@app.get("/", summary="Root endpoint")
-def root():
-    return {"message": "Welcome to P2P Exchange API"}
