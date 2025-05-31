@@ -1,26 +1,54 @@
-# database.py
+import mysql.connector
 
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+# Настройки базы данных
+db_host = 'localhost'
+db_user = 'root'
+db_password = 'password'
+db_name = 'p2p_database'
 
-# Для простоты используем SQLite. Файл будет храниться рядом с проектом.
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-
-# Если вы хотите подключиться к PostgreSQL, MySQL и т.п., поменяйте строку подключения выше.
-
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+# Создание соединения с базой данных
+cnx = mysql.connector.connect(
+    user=db_user,
+    password=db_password,
+    host=db_host,
+    database=db_name
 )
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+# Создание таблицы пользователей
+cursor = cnx.cursor()
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT,
+        username VARCHAR(255),
+        email VARCHAR(255),
+        password VARCHAR(255),
+        PRIMARY KEY (id)
+    );
+""")
 
+# Создание таблицы объявлений
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ads (
+        id INT AUTO_INCREMENT,
+        user_id INT,
+        title VARCHAR(255),
+        description TEXT,
+        price DECIMAL(10, 2),
+        PRIMARY KEY (id),
+        FOREIGN KEY (user_id) REFERENCES users (id)
+    );
+""")
 
-# Зависимость, которая выдаёт сессию при каждом запросе
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Создание таблицы операций
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS transactions (
+        id INT AUTO_INCREMENT,
+        user_id INT,
+        ad_id INT,
+        amount DECIMAL(10, 2),
+        status VARCHAR(255),
+        PRIMARY KEY (id),
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (ad_id) REFERENCES ads (id)
+    );
+""")
