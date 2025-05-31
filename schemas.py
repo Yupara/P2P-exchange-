@@ -1,20 +1,23 @@
-# auth/schemas.py
+# ads/schemas.py
+from pydantic import BaseModel
+from typing import Optional
 
-from pydantic import BaseModel, EmailStr
+class AdBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    price: float
+    currency: str
+    type: str  # buy or sell
 
-class UserCreate(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
+class AdCreate(AdBase):
+    pass
 
-class UserOut(BaseModel):
+class AdUpdate(AdBase):
+    pass
+
+class AdOut(AdBase):
     id: int
-    username: str
-    email: EmailStr
+    owner_id: int
 
     class Config:
-        from_attributes = True  # Pydantic v2 (раньше было orm_mode = True)
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
+        from_attributes = True
