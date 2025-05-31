@@ -1,9 +1,6 @@
-# schemas.py
+# auth/schemas.py
 
 from pydantic import BaseModel, EmailStr
-from typing import Optional
-
-# --- User-схемы ---
 
 class UserCreate(BaseModel):
     username: str
@@ -16,30 +13,8 @@ class UserOut(BaseModel):
     email: EmailStr
 
     class Config:
-        # В Pydantic v2 вместо orm_mode используется from_attributes
-        from_attributes = True
-
-
-# --- Token-схемы ---
+        from_attributes = True  # Pydantic v2 (раньше было orm_mode = True)
 
 class Token(BaseModel):
     access_token: str
     token_type: str
-
-
-# --- Ad-схемы ---
-
-class AdCreate(BaseModel):
-    title: str
-    description: str
-    price: float
-
-class AdOut(BaseModel):
-    id: int
-    title: str
-    description: str
-    price: float
-    owner_id: int
-
-    class Config:
-        from_attributes = True
