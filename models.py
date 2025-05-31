@@ -6,9 +6,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
-    email = Column(String, unique=True, index=True)
-    password = Column(String)
-
+    hashed_password = Column(String)
     ads = relationship("Ad", back_populates="owner")
 
 class Ad(Base):
@@ -18,5 +16,4 @@ class Ad(Base):
     description = Column(String)
     price = Column(Float)
     owner_id = Column(Integer, ForeignKey("users.id"))
-
     owner = relationship("User", back_populates="ads")
