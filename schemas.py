@@ -1,17 +1,8 @@
-# schemas.py
-
 from pydantic import BaseModel
 
 class UserCreate(BaseModel):
     username: str
     password: str
-
-class UserOut(BaseModel):
-    id: int
-    username: str
-
-    class Config:
-        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
@@ -22,12 +13,9 @@ class AdCreate(BaseModel):
     description: str
     price: float
 
-class AdOut(BaseModel):
+class AdOut(AdCreate):
     id: int
-    title: str
-    description: str
-    price: float
     owner_id: int
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # Для Pydantic v2
