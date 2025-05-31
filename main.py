@@ -1,10 +1,10 @@
 from fastapi import FastAPI
+from models import Base
+from database import engine
+from auth import router as auth_router
 
-app = FastAPI()
+app = FastAPI(title="P2P Exchange API")
 
-@app.get("/")
-def root():
-    return {"message": "P2P Exchange работает!"}
+Base.metadata.create_all(bind=engine)
 
-from auth import routes as auth_routes
-app.include_router(auth_routes.router)
+app.include_router(auth_router)
