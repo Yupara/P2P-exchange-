@@ -124,3 +124,11 @@ app.include_router(ads_router)
 @app.get("/")
 def root():
     return {"message": "Welcome to P2P Exchange API"}
+from fastapi import FastAPI
+from auth.routes import router as auth_router
+from ads_routes import router as ads_router  # 👈 новый импорт
+
+app = FastAPI()
+
+app.include_router(auth_router)
+app.include_router(ads_router)  # 👈 подключаем ads
