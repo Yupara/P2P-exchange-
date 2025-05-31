@@ -1,66 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from typing import List
-from auth.jwt_handler import verify_token
+from sqlalchemy.orm import Session
+from passlib.hash import bcrypt
+from auth.jwt_handler import create_access_token
+from auth.deps import get_db, get_current_user
+import models, schemas
 
-router = APIRouter(prefix="/ads", tags=["ads"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Временное хранилище в памяти
-fake_ads_db = []
-ad_id_counter = 1
+@router.post("/register", response_model=schemas.UserOut)
+def register(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == user_data.email).first()
+    if user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed = bcrypt.hash(user_data.password)
+    new_user = models.User(email=user_data.email, hashed_password=hashed)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
 
-class Ad(BaseModel):
-    id: int
-    title: str
-    description: str
-    price: float
-    owner_email: str
+@router.post("/login", response_model=schemas.Token)
+def login(user_data: schemas.UserCreate, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == user_data.email).first()
+    if not user or not bcrypt.verify(user_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    token = create_access_token({"sub": user.email})
+    return {"access_token": token, "token_type": "bearer"}
 
-class AdCreate(BaseModel):
-    title: str
-    description: str
-    price: float
-
-@router.post("/", response_model=Ad)
-def create_ad(ad: AdCreate, email: str = Depends(verify_token)):
-    global ad_id_counter
-    new_ad = Ad(
-        id=ad_id_counter,
-        title=ad.title,
-        description=ad.description,
-        price=ad.price,
-        owner_email=email
-    )
-    fake_ads_db.append(new_ad)
-    ad_id_counter += 1
-    return new_ad
-
-@router.get("/", response_model=List[Ad])
-def get_all_ads():
-    return fake_ads_db
-
-@router.get("/my", response_model=List[Ad])
-def get_my_ads(email: str = Depends(verify_token)):
-    return [ad for ad in fake_ads_db if ad.owner_email == email]
-
-@router.put("/{ad_id}", response_model=Ad)
-def update_ad(ad_id: int, ad: AdCreate, email: str = Depends(verify_token)):
-    for existing_ad in fake_ads_db:
-        if existing_ad.id == ad_id:
-            if existing_ad.owner_email != email:
-                raise HTTPException(status_code=403, detail="Forbidden")
-            existing_ad.title = ad.title
-            existing_ad.description = ad.description
-            existing_ad.price = ad.price
-            return existing_ad
-    raise HTTPException(status_code=404, detail="Ad not found")
-
-@router.delete("/{ad_id}")
-def delete_ad(ad_id: int, email: str = Depends(verify_token)):
-    for i, existing_ad in enumerate(fake_ads_db):
-        if existing_ad.id == ad_id:
-            if existing_ad.owner_email != email:
-                raise HTTPException(status_code=403, detail="Forbidden")
-            fake_ads_db.pop(i)
-            return {"message": "Ad deleted"}
-    raise HTTPException(status_code=404, detail="Ad not found")
+@router.get("/me", response_model=schemas.UserOut)
+def me(current_user: models.User = Depends(get_current_user)):
+    return current_user
