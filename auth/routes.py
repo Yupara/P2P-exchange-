@@ -27,3 +27,15 @@ def login(user_data: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer"}
+
+from fastapi import APIRouter, Depends
+from auth.deps import get_current_user
+from models import User
+
+router = APIRouter()
+
+# Уже есть login, register — добавим /me:
+
+@router.get("/me", response_model=dict)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return {"id": current_user.id, "username": current_user.username}
