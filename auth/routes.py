@@ -1,18 +1,54 @@
-from fastapi import APIRouter, Depends
-from fastapi.security import OAuth2PasswordRequestForm
-from auth.schemas import UserCreate, Token
-from auth.dependencies import oauth2_scheme
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+from database import SessionLocal, engine
+from auth import models, schemas, utils
+from jose import JWTError, jwt
 
-router = APIRouter()
+models.Base.metadata.create_all(bind=engine)
 
-@router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Просто возвращаем фейковый токен (для теста Swagger)
-    return {
-        "access_token": "fake-jwt-token",
-        "token_type": "bearer"
-    }
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
-@router.get("/me")
-def read_users_me(token: str = Depends(oauth2_scheme)):
-    return {"user": "current", "token": token}
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@router.post("/register", response_model=schemas.UserOut)
+def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    hashed_pw = utils.hash_password(user.password)
+    new_user = models.User(username=user.username, email=user.email, password=hashed_pw)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+@router.post("/token", response_model=schemas.Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    if not user or not utils.verify_password(form_data.password, user.password):
+        raise HTTPException(status_code=400, detail="Incorrect credentials")
+    token = utils.create_access_token({"sub": user.email})
+    return {"access_token": token, "token_type": "bearer"}
+
+@router.get("/me", response_model=schemas.UserOut)
+def read_users_me(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, utils.SECRET_KEY, algorithms=[utils.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
