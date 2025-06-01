@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
-from auth import models, schemas, utils
+from . import models, schemas, utils  # ← Точка перед именем
 from jose import JWTError, jwt
 
 models.Base.metadata.create_all(bind=engine)
